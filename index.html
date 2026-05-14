@@ -174,7 +174,7 @@
     <div class="stats">
       <div class="stat">
         <span class="label">Собрано</span>
-        <strong id="totalRub">—</strong>
+        <strong id="totalRub">—</strong> <span class="stat-suffix">/ <span id="goalRub">—</span></span>
       </div>
       <div class="stat muted">
         <span class="label">Сдали участки</span>
@@ -712,6 +712,8 @@
 (function () {
   const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR9CuCpRUFwmVScOPLhtSkFSE11gdFOQSvy6CYf3M_2SsMa90VvSH5YRHm7jtFpZfdy5cdb7GnQvRsV/pub?gid=0&single=true&output=csv";
   const COLLECT_END = new Date(2026, 4, 19);
+  /** Плановая сумма сбора (руб.) */
+  const COLLECT_GOAL_RUB = 70000;
 
   const CYR_TO_LAT = {
     "\u0430": "a",
@@ -889,7 +891,7 @@
     return parts + " ₽";
   }
 
-  function applyPayments(paidKeys, total) {
+  function applyPayments(paidKeys, total, plotTotalFromCsv) {
     const svg = document.getElementById("map-svg");
     if (!svg) return;
     const paths = svg.querySelectorAll("path[data-place]");
@@ -907,7 +909,9 @@
     });
     document.getElementById("totalRub").textContent = formatRub(total);
     document.getElementById("paidCount").textContent = String(paidOnMap);
-    document.getElementById("mapCount").textContent = String(paths.length);
+    const denom =
+      plotTotalFromCsv != null && plotTotalFromCsv >= 0 ? plotTotalFromCsv : paths.length;
+    document.getElementById("mapCount").textContent = String(denom);
   }
 
   function setDaysLeft() {
@@ -935,6 +939,7 @@
       const paidKeys = new Set();
       let total = 0;
       let totalRowSeen = false;
+      let totalLabelRowCount = 0;
       for (let r = 1; r < rows.length; r++) {
         const row = rows[r];
         const plotCell = row[idxPlot] != null ? row[idxPlot] : "";
@@ -942,6 +947,7 @@
         if (isTotalRowLabel(plotCell)) {
           total = parseSum(sumCell);
           totalRowSeen = true;
+          totalLabelRowCount++;
           continue;
         }
         const key = normalizePlotKey(plotCell);
@@ -949,7 +955,8 @@
         if (hasSumNonEmpty(sumCell)) paidKeys.add(key);
       }
       if (!totalRowSeen) total = 0;
-      applyPayments(paidKeys, total);
+      const plotTotalFromCsv = Math.max(0, rows.length - 1 - totalLabelRowCount);
+      applyPayments(paidKeys, total, plotTotalFromCsv);
       status.textContent = "Данные обновлены: " + new Date().toLocaleString("ru-RU");
       status.classList.remove("err");
       status.classList.add("ok");
@@ -958,7 +965,7 @@
       status.textContent = "Ошибка загрузки: " + (e && e.message ? e.message : e);
       status.classList.remove("ok");
       status.classList.add("err");
-      applyPayments(new Set(), 0);
+      applyPayments(new Set(), 0, null);
     }
   }
 
@@ -1087,6 +1094,9 @@
       hideTip();
     });
   }
+
+  const goalRubEl = document.getElementById("goalRub");
+  if (goalRubEl) goalRubEl.textContent = formatRub(COLLECT_GOAL_RUB);
 
   setDaysLeft();
   loadCsv();
